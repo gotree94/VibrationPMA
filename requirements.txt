@@ -1,0 +1,10 @@
+# Python 의존성
+tensorflow==2.15.0
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+seaborn
+jupyter
+ipykernel
