@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gas Circulation Process Modifier - 3D Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+            color: #94a3b8;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #loading.error .spinner {
+            border-top-color: #ef4444;
+        }
+
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: #94a3b8;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        #info strong {
+            color: #3b82f6;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        #stats-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: #94a3b8;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: none;
+        }
+
+        #stats-panel h3 {
+            color: #3b82f6;
+            font-size: 14px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #1e3a5f;
+            padding-bottom: 8px;
+        }
+
+        #stats-panel .stat {
+            margin: 4px 0;
+        }
+
+        #stats-panel .stat span {
+            color: #e2e8f0;
+        }
+
+        #view-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: none;
+        }
+
+        #view-controls .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            max-width: 200px;
+        }
+
+        #view-controls .btn-group h3 {
+            width: 100%;
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #view-controls button {
+            flex: 1;
+            min-width: 60px;
+            background: #1e3a5f;
+            border: 1px solid #2c5282;
+            padding: 8px 10px;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #view-controls button:hover {
+            background: #3b82f6;
+            border-color: #3b82f6;
+            transform: translateY(-1px);
+        }
+
+        #view-controls button.active {
+            background: #3b82f6;
+            border-color: #3b82f6;
+        }
+
+        #view-controls .btn-parts button {
+            min-width: 92px;
+            font-size: 11px;
+            padding: 8px 4px;
+        }
+
+        #tree-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 340px;
+            max-height: calc(100vh - 200px);
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        #tree-panel.visible {
+            display: flex;
+        }
+
+        .tree-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid #1e3a5f;
+        }
+
+        .tree-header h3 {
+            color: #3b82f6;
+            font-size: 14px;
+        }
+
+        .tree-header button {
+            background: #1e3a5f;
+            border: 1px solid #2c5282;
+            color: #e2e8f0;
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .tree-header button:hover {
+            background: #3b82f6;
+        }
+
+        #tree-container {
+            padding: 8px 6px;
+            overflow-y: auto;
+            flex: 1;
+            font-size: 12px;
+            color: #cbd5e1;
+        }
+
+        #tree-container details {
+            margin-left: 14px;
+        }
+
+        #tree-container summary {
+            cursor: pointer;
+            padding: 3px 6px;
+            border-radius: 4px;
+            list-style-position: outside;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #tree-container summary:hover {
+            background: #1e3a5f;
+        }
+
+        #tree-container .tree-leaf {
+            margin-left: 14px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #tree-container .tree-leaf:hover {
+            background: #1e3a5f;
+        }
+
+        #tree-container .tree-leaf.selected {
+            background: #3b82f6;
+            color: #ffffff;
+        }
+
+        #tree-container details.selected > summary {
+            background: #3b82f6;
+            color: #ffffff;
+        }
+
+        #tree-container details.selected > summary .leaf-meta {
+            color: #dbeafe;
+        }
+
+        #tree-container .leaf-meta {
+            color: #64748b;
+        }
+
+        #tree-container .tree-leaf.selected .leaf-meta {
+            color: #dbeafe;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>gas_circulation_process_modifier.glb 로딩중...</p>
+        </div>
+
+        <div id="stats-panel">
+            <h3>모델 정보</h3>
+            <div class="stat">메시 수: <span id="stat-mesh">-</span></div>
+            <div class="stat">버텍스 수: <span id="stat-vertices">-</span></div>
+            <div class="stat">머티리얼 수: <span id="stat-materials">-</span></div>
+        </div>
+
+        <div id="view-controls">
+            <div class="btn-group">
+                <h3>시점 제어</h3>
+                <button id="btn-front">정면</button>
+                <button id="btn-back">후면</button>
+                <button id="btn-left">좌측</button>
+                <button id="btn-right">우측</button>
+                <button id="btn-top">상단</button>
+                <button id="btn-bottom">하단</button>
+                <button id="btn-iso">ISO</button>
+                <button id="btn-reset">리셋</button>
+            </div>
+            <div class="btn-group" style="margin-top: 8px;">
+                <h3>성능</h3>
+                <button id="btn-shadows" style="min-width: 120px;">그림자 ON</button>
+            </div>
+            <div class="btn-group" style="margin-top: 8px;">
+                <h3>부품 탐색</h3>
+                <button id="btn-tree" style="min-width: 120px;">구조 트리</button>
+            </div>
+            <div class="btn-group" style="margin-top: 8px;">
+                <h3>트리 저장</h3>
+                <button id="btn-tree-save" style="min-width: 120px;">TXT</button>
+                <button id="btn-tree-json" style="min-width: 120px;">JSON</button>
+                <button id="btn-tree-csv" style="min-width: 120px;">CSV</button>
+            </div>
+            <div class="btn-group btn-parts" style="margin-top: 8px;">
+                <h3>관심 부품</h3>
+                <button class="part-btn" data-part="nut_m011">nut_m011</button>
+                <button class="part-btn" data-part="nut_m012">nut_m012</button>
+                <button class="part-btn" data-part="bolt_short_m002">bolt_short_m002</button>
+                <button class="part-btn" data-part="bolt_short_m003">bolt_short_m003</button>
+            </div>
+        </div>
+
+        <div id="tree-panel">
+            <div class="tree-header">
+                <h3>구조 트리</h3>
+                <button id="btn-tree-close">닫기 ✕</button>
+            </div>
+            <div id="tree-container"></div>
+        </div>
+
+        <div id="info">
+            <span class="status-indicator"></span>
+            <strong>조작:</strong> 마우스 드래그(회전) | 휠(줌) | 우클릭(이동) | 더블클릭(리셋)
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.159.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const BACKGROUND = 0x0f172a;
+        let model = null;
+        let modelWrapper = null;
+        let homeCameraPos = null;
+        let homeTarget = null;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(BACKGROUND);
+        scene.fog = new THREE.Fog(BACKGROUND, 20, 60);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        renderer.shadowMap.enabled = false;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.rotateSpeed = 1.5;
+        controls.panSpeed = 1.6;
+        controls.zoomSpeed = 1.5;
+        controls.minDistance = 1;
+        controls.maxDistance = 50;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+        sun.position.set(5, 10, 7);
+        sun.castShadow = true;
+        sun.shadow.mapSize.width = 1024;
+        sun.shadow.mapSize.height = 1024;
+        sun.shadow.camera.near = 0.5;
+        sun.shadow.camera.far = 40;
+        scene.add(sun);
+
+        const rim = new THREE.DirectionalLight(0x4fc3f7, 0.5);
+        rim.position.set(-5, 3, -5);
+        scene.add(rim);
+
+        const fill = new THREE.PointLight(0xffffff, 0.4, 30);
+        fill.position.set(0, 5, -3);
+        scene.add(fill);
+
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x1e293b,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        const ground = new THREE.Mesh(new THREE.CircleGeometry(30, 64), groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.001;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        const grid = new THREE.GridHelper(40, 40, 0x2c5282, 0x1e3a5f);
+        grid.position.y = 0.001;
+        scene.add(grid);
+
+        function getDepth(obj) {
+            let depth = 0;
+            let cur = obj;
+            while (cur.parent) { depth++; cur = cur.parent; }
+            return depth;
+        }
+
+        function fitModelToView(obj) {
+            const box = new THREE.Box3().setFromObject(obj);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+
+            obj.position.x -= center.x;
+            obj.position.z -= center.z;
+            obj.position.y -= box.min.y;
+
+            const distance = maxDim * 2.2;
+            homeCameraPos = new THREE.Vector3(distance * 0.7, distance * 0.6, distance * 0.7);
+            homeTarget = new THREE.Vector3(0, maxDim * 0.35, 0);
+
+            camera.position.copy(homeCameraPos);
+            controls.target.copy(homeTarget);
+            controls.minDistance = maxDim * 0.05;
+            controls.maxDistance = maxDim * 8;
+            controls.update();
+        }
+
+        const loader = new GLTFLoader();
+        loader.load(
+            './gas_circulation_process_modifier.glb',
+            (gltf) => {
+                model = gltf.scene;
+
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+
+                model.rotation.y = Math.PI;
+
+                modelWrapper = new THREE.Group();
+                modelWrapper.rotation.x = -Math.PI / 2;
+
+                const modelInner = new THREE.Group();
+                modelInner.rotation.z = -Math.PI;
+                modelInner.add(model);
+                modelWrapper.add(modelInner);
+
+                fitModelToView(modelWrapper);
+                scene.add(modelWrapper);
+
+                let meshCount = 0;
+                let vertexCount = 0;
+                const materialSet = new Set();
+                let structure = '\n=== gas_circulation_process_modifier.glb 구조 ===\n\n';
+                model.traverse((child) => {
+                    if (child.name) {
+                        const indent = '  '.repeat(getDepth(child));
+                        structure += `${indent}[${child.type}] ${child.name}\n`;
+                        if (child.isMesh) {
+                            meshCount++;
+                            vertexCount += child.geometry.attributes.position?.count || 0;
+                            const mats = Array.isArray(child.material) ? child.material : [child.material];
+                            mats.forEach(m => { if (m) materialSet.add(m.name || m.type); });
+                            structure += `${indent}  └ Vertices: ${child.geometry.attributes.position?.count || 0}\n`;
+                        }
+                    }
+                });
+                structure += `\n총 메시 수: ${meshCount}\n`;
+                structure += `총 버텍스 수: ${vertexCount}\n`;
+                structure += `총 머티리얼 수: ${materialSet.size}\n`;
+                console.log(structure);
+
+                document.getElementById('stat-mesh').textContent = meshCount;
+                document.getElementById('stat-vertices').textContent = vertexCount.toLocaleString();
+                document.getElementById('stat-materials').textContent = materialSet.size;
+                document.getElementById('stats-panel').style.display = 'block';
+                document.getElementById('view-controls').style.display = 'block';
+                document.getElementById('loading').style.display = 'none';
+            },
+            (xhr) => {
+                const pct = xhr.total ? Math.round(xhr.loaded / xhr.total * 100) : '...';
+                document.getElementById('loading').querySelector('p').textContent =
+                    `gas_circulation_process_modifier.glb 로딩중... ${pct}%`;
+            },
+            (error) => {
+                console.error('GLB 로드 실패:', error);
+                const loading = document.getElementById('loading');
+                loading.classList.add('error');
+                loading.querySelector('p').textContent = '❌ GLB 파일을 찾을 수 없습니다. server.js로 실행했는지 확인하세요.';
+                loading.querySelector('.spinner').style.display = 'none';
+            }
+        );
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            if (homeCameraPos) {
+                camera.position.copy(homeCameraPos);
+                controls.target.copy(homeTarget);
+                controls.update();
+            }
+        });
+
+        document.getElementById('btn-iso').addEventListener('click', () => btnReset());
+        document.getElementById('btn-front').addEventListener('click', () => setView(new THREE.Vector3(0, 0.4, 1)));
+        document.getElementById('btn-back').addEventListener('click', () => setView(new THREE.Vector3(0, 0.4, -1)));
+        document.getElementById('btn-left').addEventListener('click', () => setView(new THREE.Vector3(-1, 0.4, 0)));
+        document.getElementById('btn-right').addEventListener('click', () => setView(new THREE.Vector3(1, 0.4, 0)));
+        document.getElementById('btn-top').addEventListener('click', () => setView(new THREE.Vector3(0, 1, 0), true));
+        document.getElementById('btn-bottom').addEventListener('click', () => setView(new THREE.Vector3(0, -1, 0), true));
+
+        function setView(dir, isVertical) {
+            if (!homeCameraPos) return;
+            const dist = homeCameraPos.length();
+            const pos = isVertical
+                ? dir.clone().multiplyScalar(dist)
+                : dir.clone().multiplyScalar(dist).setY(dist * 0.35);
+            camera.position.copy(pos);
+            controls.target.copy(homeTarget);
+            controls.update();
+        }
+
+        function btnReset() {
+            document.getElementById('btn-reset').click();
+        }
+
+        renderer.domElement.addEventListener('dblclick', btnReset);
+
+        let needsRender = true;
+        controls.addEventListener('change', () => { needsRender = true; });
+
+        const shadowBtn = document.getElementById('btn-shadows');
+        shadowBtn.addEventListener('click', () => {
+            renderer.shadowMap.enabled = !renderer.shadowMap.enabled;
+            shadowBtn.textContent = renderer.shadowMap.enabled ? '그림자 ON' : '그림자 OFF';
+            shadowBtn.classList.toggle('active', renderer.shadowMap.enabled);
+            needsRender = true;
+        });
+
+        let selectedMeshes = [];
+        let selectedEl = null;
+
+        function esc(s) {
+            return String(s).replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[c]);
+        }
+
+        function cn(raw) {
+            const s = String(raw || '');
+            const cleaned = s.replace(/\\X\d+\\/g, '').replace(/\u0000/g, '');
+            return cleaned || '(unnamed)';
+        }
+
+        function hasMeshDescendant(o) {
+            if (o.isMesh) return true;
+            return (o.children || []).some(hasMeshDescendant);
+        }
+
+        function treeItem(obj, isRoot) {
+            if (obj.isMesh) {
+                const el = document.createElement('div');
+                el.className = 'tree-leaf';
+                const v = obj.geometry.attributes.position?.count || 0;
+                el.innerHTML = `◈ ${esc(cn(obj.name))} <span class="leaf-meta">(${v}v)</span>`;
+                el.addEventListener('click', () => selectPart(obj, el));
+                return el;
+            }
+
+            const children = (obj.children || []).filter(c =>
+                c.isMesh || (c.name && hasMeshDescendant(c))
+            );
+            if (children.length === 0) return null;
+
+            const details = document.createElement('details');
+            if (isRoot) details.open = true;
+            const summary = document.createElement('summary');
+            summary.innerHTML = `${isRoot ? '🏗 ' : '▸ '}${esc(cn(obj.name || ''))} ` +
+                `<span class="leaf-meta">(${children.length})</span>`;
+            summary.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectPart(obj, details);
+            });
+            details.appendChild(summary);
+
+            children.forEach(c => {
+                const el = treeItem(c, false);
+                if (el) details.appendChild(el);
+            });
+            return details;
+        }
+
+        function buildTree() {
+            const container = document.getElementById('tree-container');
+            container.innerHTML = '';
+            const el = treeItem(model, true);
+            if (el) container.appendChild(el);
+        }
+
+        function collectMeshes(obj) {
+            if (obj.isMesh) return [obj];
+            const meshes = [];
+            obj.traverse(c => { if (c.isMesh) meshes.push(c); });
+            return meshes;
+        }
+
+        function selectPart(obj, el) {
+            clearHighlight();
+            const meshes = collectMeshes(obj);
+            selectedMeshes = meshes;
+            if (el) {
+                selectedEl = el;
+                el.classList.add('selected');
+            } else {
+                selectedEl = null;
+            }
+            meshes.forEach(highlightMesh);
+            focusOn(obj);
+        }
+
+        function highlightMesh(mesh) {
+            mesh.userData._origMaterial = mesh.material;
+            mesh.material = new THREE.MeshStandardMaterial({
+                color: 0xff8800,
+                emissive: 0xff8800,
+                emissiveIntensity: 0.35,
+                metalness: 0.1,
+                roughness: 0.4
+            });
+        }
+
+        function clearHighlight() {
+            selectedMeshes.forEach(mesh => {
+                if (mesh.userData._origMaterial) {
+                    mesh.material = mesh.userData._origMaterial;
+                    delete mesh.userData._origMaterial;
+                }
+            });
+            selectedMeshes = [];
+            if (selectedEl) {
+                selectedEl.classList.remove('selected');
+                selectedEl = null;
+            }
+            needsRender = true;
+        }
+
+        function focusOn(obj) {
+            const box = new THREE.Box3().setFromObject(obj);
+            if (box.isEmpty()) return;
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z, 0.05);
+            const dist = maxDim * 3;
+
+            const camDir = camera.position.clone().sub(controls.target).normalize();
+            const endPos = center.clone().add(camDir.multiplyScalar(dist));
+            animateCamera(camera.position.clone(), controls.target.clone(), endPos, center);
+        }
+
+        function animateCamera(startPos, startTarget, endPos, endTarget) {
+            const dur = 500;
+            const t0 = performance.now();
+            function step() {
+                const t = Math.min((performance.now() - t0) / dur, 1);
+                const e = 1 - Math.pow(1 - t, 3);
+                camera.position.lerpVectors(startPos, endPos, e);
+                controls.target.lerpVectors(startTarget, endTarget, e);
+                controls.update();
+                needsRender = true;
+                if (t < 1) requestAnimationFrame(step);
+            }
+            step();
+        }
+
+        const treePanel = document.getElementById('tree-panel');
+        const treeBtn = document.getElementById('btn-tree');
+
+        function findPart(name) {
+            let obj = model.getObjectByName(name);
+            if (!obj) {
+                model.traverse(o => {
+                    if (!obj && cn(o.name) === name) obj = o;
+                });
+            }
+            return obj && collectMeshes(obj).length ? obj : null;
+        }
+
+        function focusPartByName(name) {
+            if (!model) return;
+            const obj = findPart(name);
+            if (obj) {
+                selectPart(obj, null);
+            } else {
+                console.warn(`부품을 찾지 못함: ${name}`);
+            }
+        }
+
+        document.querySelectorAll('.part-btn').forEach(btn => {
+            btn.addEventListener('click', () => focusPartByName(btn.dataset.part));
+        });
+
+        function nodePath(obj) {
+            const parts = [];
+            let cur = obj;
+            while (cur) { parts.unshift(cur.name || '(unnamed)'); cur = cur.parent; }
+            return parts.join(' / ');
+        }
+
+        function materialNamesOf(mesh) {
+            const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            return mats.map(m => m ? (m.name || m.type) : '-');
+        }
+
+        function countVertices(mesh) {
+            return mesh.geometry.attributes.position?.count || 0;
+        }
+
+        function treeToText() {
+            const lines = [];
+            lines.push('=== gas_circulation_process_modifier.glb 구조 ===');
+            lines.push(`생성: ${new Date().toLocaleString()}`);
+            lines.push('');
+            let meshCount = 0;
+            let vertexCount = 0;
+            const materialSet = new Set();
+            model.traverse((child) => {
+                const indent = '  '.repeat(getDepth(child));
+                const name = child.name || '(unnamed)';
+                if (child.isMesh) {
+                    meshCount++;
+                    vertexCount += countVertices(child);
+                    materialNamesOf(child).forEach(x => materialSet.add(x));
+                    lines.push(`${indent}[Mesh] ${name} (${countVertices(child)}v) [${materialNamesOf(child).join(',')}]`);
+                } else {
+                    lines.push(`${indent}[${child.type}] ${name}`);
+                }
+            });
+            lines.push('');
+            lines.push(`총 메시 수: ${meshCount}`);
+            lines.push(`총 버텍스 수: ${vertexCount.toLocaleString()}`);
+            lines.push(`총 머티리얼 수: ${materialSet.size}`);
+            return lines.join('\n');
+        }
+
+        function treeToJson() {
+            let meshCount = 0;
+            let vertexCount = 0;
+            const materialSet = new Set();
+            function toNode(obj) {
+                const node = { name: obj.name || '(unnamed)', type: obj.type };
+                if (obj.isMesh) {
+                    meshCount++;
+                    vertexCount += countVertices(obj);
+                    materialNamesOf(obj).forEach(x => materialSet.add(x));
+                    node.vertices = countVertices(obj);
+                    node.materials = materialNamesOf(obj);
+                }
+                if (obj.children && obj.children.length) {
+                    node.children = obj.children.map(toNode);
+                }
+                return node;
+            }
+            const root = toNode(model);
+            return JSON.stringify({
+                file: 'gas_circulation_process_modifier.glb',
+                generated: new Date().toISOString(),
+                summary: {
+                    meshes: meshCount,
+                    vertices: vertexCount,
+                    materials: materialSet.size
+                },
+                root
+            }, null, 2);
+        }
+
+        function csvEscape(v) {
+            const s = String(v == null ? '' : v);
+            return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        }
+
+        function treeToCsv() {
+            const rows = [];
+            model.traverse((child) => {
+                const name = child.name || '(unnamed)';
+                const type = child.type;
+                const v = child.isMesh ? countVertices(child) : '';
+                const mat = child.isMesh ? materialNamesOf(child).join('|') : '';
+                rows.push([name, nodePath(child), type, v, mat].map(csvEscape).join(','));
+            });
+            const header = ['부품명', '경로', '타입', '버텍스', '머티리얼'].map(csvEscape).join(',');
+            return [header, ...rows].join('\r\n');
+        }
+
+        function saveFile(filename, content, mime) {
+            const blob = new Blob([content], { type: mime + ';charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        document.getElementById('btn-tree-save').addEventListener('click', () => {
+            if (!model) return;
+            saveFile('gas_circulation_structure.txt', treeToText(), 'text/plain');
+        });
+        document.getElementById('btn-tree-json').addEventListener('click', () => {
+            if (!model) return;
+            saveFile('gas_circulation_structure.json', treeToJson(), 'application/json');
+        });
+        document.getElementById('btn-tree-csv').addEventListener('click', () => {
+            if (!model) return;
+            saveFile('gas_circulation_structure.csv', treeToCsv(), 'text/csv');
+        });
+
+        function openTree() {
+            if (!model) return;
+            if (!treePanel.dataset.built) {
+                buildTree();
+                treePanel.dataset.built = '1';
+            }
+            treePanel.classList.add('visible');
+            treeBtn.classList.add('active');
+        }
+        function closeTree() {
+            treePanel.classList.remove('visible');
+            treeBtn.classList.remove('active');
+        }
+        treeBtn.addEventListener('click', () => {
+            if (treePanel.classList.contains('visible')) closeTree();
+            else openTree();
+        });
+        document.getElementById('btn-tree-close').addEventListener('click', closeTree);
+
+        let animFrameId = null;
+        function animate() {
+            animFrameId = requestAnimationFrame(animate);
+            controls.update();
+            if (needsRender) {
+                needsRender = false;
+                renderer.render(scene, camera);
+            }
+        }
+        animate();
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            needsRender = true;
+        }
+        window.addEventListener('resize', onResize);
+
+        let disposed = false;
+        function disposeAll() {
+            if (disposed) return;
+            disposed = true;
+
+            if (animFrameId !== null) cancelAnimationFrame(animFrameId);
+
+            const disposedMats = new Set();
+            scene.traverse((obj) => {
+                if (obj.isMesh) {
+                    obj.geometry?.dispose();
+                    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                    mats.forEach((m) => {
+                        if (m && !disposedMats.has(m)) {
+                            disposedMats.add(m);
+                            [m.map, m.normalMap, m.metalnessMap, m.roughnessMap,
+                             m.emissiveMap, m.aoMap, m.alphaMap, m.bumpMap]
+                                .forEach(t => t?.dispose());
+                            m.dispose();
+                        }
+                    });
+                }
+            });
+
+            controls.dispose();
+            renderer.dispose();
+
+            window.removeEventListener('resize', onResize);
+            renderer.domElement.removeEventListener('dblclick', btnReset);
+
+            if (renderer.domElement.parentElement) {
+                renderer.domElement.parentElement.removeChild(renderer.domElement);
+            }
+        }
+        window.addEventListener('beforeunload', disposeAll);
+        document.addEventListener('pagehide', disposeAll);
+    </script>
+</body>
+</html>

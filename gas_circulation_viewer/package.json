@@ -1,0 +1,16 @@
+{
+  "name": "gas_circulation_viewer",
+  "version": "1.0.0",
+  "description": "Gas Circulation Process Modifier - 3D Viewer (Three.js)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "server.js": "node server.js"
+  },
+  "keywords": [
+    "threejs",
+    "glb",
+    "viewer"
+  ],
+  "license": "MIT"
+}
